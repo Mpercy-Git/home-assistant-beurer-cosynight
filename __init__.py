@@ -1,0 +1,2 @@
+"""Beurer CosyNight integration."""
+

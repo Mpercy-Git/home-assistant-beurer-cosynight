@@ -111,6 +111,8 @@ class BeurerCosyNight:
                               })
             r.raise_for_status()
             self._update_token(r)
+        else:
+            self._refresh_token()
 
     def get_status(self, id):
         self._refresh_token()
