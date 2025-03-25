@@ -1,8 +1,5 @@
 Minimal integration with Beurer CosyNight.
 
 ```
-select:
-  - platform: beurer_cosynight
-    username: !secret cosynight_username
-    password: !secret cosynight_password
+Install via hacs and setup via gui
 ```
