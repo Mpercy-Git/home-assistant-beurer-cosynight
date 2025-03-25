@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import requests
+import aiofiles  # Add this import
 
 
 _BASE_URL = 'https://cosynight.azurewebsites.net'
@@ -66,19 +67,20 @@ class BeurerCosyNight:
     class Error(Exception):
         pass
 
-    def __init__(self):
+    async def __init__(self):
         self._token = None
         if os.path.exists('token'):
-            with open('token') as f:
-                self._token = _Token(**json.load(f))
+            async with aiofiles.open('token', mode='r') as f:
+                content = await f.read()
+                self._token = _Token(**json.loads(content))
 
-    def _update_token(self, response):
+    async def _update_token(self, response):
         body = response.json()
         body['expires'] = body.pop('.expires')
         body['issued'] = body.pop('.issued')
         self._token = _Token(**body)
-        with open('token', 'w') as f:
-            json.dump(dataclasses.asdict(self._token), f)
+        async with aiofiles.open('token', mode='w') as f:
+            await f.write(json.dumps(dataclasses.asdict(self._token)))
         logging.info('Token updated.')
 
     def _refresh_token(self):
