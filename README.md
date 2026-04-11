@@ -42,24 +42,17 @@ It provides:
 
 ### Setup
 
-1. **Restart Home Assistant** after installing/updating the integration (to load the bundled card).
+1. **Restart Home Assistant** after installing/updating the integration (to load and auto-register the bundled card).
 
-2. Add the card resource to your Lovelace resources:
-   - Go to **Settings → Dashboards → Resources**
-   - Click **Create Resource**
-   - URL: `/beurer_cosynight/beurer-cosynight-card.js`
-   - Resource type: `JavaScript Module`
-   - Click **Create**
-
-3. Create a new card:
-   - Add a **Manual** card to your dashboard (or use the **Create card** button)
+2. Create a new card on your dashboard:
+   - Click **+ Create card**
    - Type: `custom:beurer-cosynight-card`
    - Click on the card to open the **visual editor** and configure:
      - Card title
      - Zone names & entity IDs
      - Timer selector and stop button (optional)
 
-4. Alternatively, paste this YAML config and replace entity IDs:
+3. Alternatively, use YAML config (paste in a Manual card):
 
 ```yaml
 type: custom:beurer-cosynight-card
