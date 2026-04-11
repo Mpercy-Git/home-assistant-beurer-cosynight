@@ -23,8 +23,8 @@ async def _register_frontend_resource(hass: HomeAssistant, card_url: str) -> Non
 
         add_extra_js_url(hass, card_url)
         return
-    except Exception:
-        pass
+    except Exception as err:
+        _LOGGER.debug("add_extra_js_url unavailable/failed: %s", err)
 
     try:
         from homeassistant.components.frontend import async_register_extra_js_url
@@ -45,6 +45,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         frontend_file = Path(__file__).parent / "frontend" / f"{CARD_NAME}.js"
         card_url = f"/beurer_cosynight/{CARD_NAME}.js"
         local_card_url = f"/local/beurer_cosynight/{CARD_NAME}.js"
+
+        if not frontend_file.exists():
+            _LOGGER.error("Card frontend file missing: %s", frontend_file)
+            return False
         
         # Register static paths for the card.
         await hass.http.async_register_static_paths(
@@ -78,7 +82,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    if hass.data[DOMAIN]:
-        hass.data[DOMAIN].pop(config_entry.entry_id, None)
+    unload_ok = await hass.config_entries.async_unload_platforms(config_entry, ["select"])
+    if not unload_ok:
+        return False
+
+    domain_data = hass.data.get(DOMAIN, {})
+    domain_data.pop(config_entry.entry_id, None)
+
+    # If no configured entries remain, force re-registration next setup.
+    has_entries = any(k != CARD_REGISTERED_KEY for k in domain_data)
+    if not has_entries:
+        domain_data.pop(CARD_REGISTERED_KEY, None)
+
+    if not domain_data:
+        hass.data.pop(DOMAIN, None)
+
     return True
 

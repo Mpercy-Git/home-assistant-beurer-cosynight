@@ -281,7 +281,9 @@ class BeurerCosyNightCard extends HTMLElement {
   }
 }
 
-customElements.define("beurer-cosynight-card", BeurerCosyNightCard);
+if (!customElements.get("beurer-cosynight-card")) {
+  customElements.define("beurer-cosynight-card", BeurerCosyNightCard);
+}
 
 class BeurerCosyNightCardEditor extends HTMLElement {
   setHass(hass) {
@@ -447,13 +449,17 @@ class BeurerCosyNightCardEditor extends HTMLElement {
   }
 }
 
-customElements.define("beurer-cosynight-card-editor", BeurerCosyNightCardEditor);
+if (!customElements.get("beurer-cosynight-card-editor")) {
+  customElements.define("beurer-cosynight-card-editor", BeurerCosyNightCardEditor);
+}
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "beurer-cosynight-card",
-  name: "Beurer CosyNight Card",
-  description: "Control and view Beurer CosyNight heat zones and timer.",
-  preview: false,
-  configurable: true,
-});
+if (!window.customCards.some((card) => card.type === "beurer-cosynight-card")) {
+  window.customCards.push({
+    type: "beurer-cosynight-card",
+    name: "Beurer CosyNight Card",
+    description: "Control and view Beurer CosyNight heat zones and timer.",
+    preview: false,
+    configurable: true,
+  });
+}
