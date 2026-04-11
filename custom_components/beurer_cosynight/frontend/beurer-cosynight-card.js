@@ -327,6 +327,14 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     return this._config.stop_button_entity || "";
   }
 
+  _normaliseColourStyle(zone) {
+    const raw = String(zone.colour_style || zone.tone || "body");
+    if (raw === "feet_left" || raw === "feet_right") {
+      return "feet";
+    }
+    return raw === "feet" ? "feet" : "body";
+  }
+
   _render() {
     this.innerHTML = `
       <div style="padding: 16px;">
