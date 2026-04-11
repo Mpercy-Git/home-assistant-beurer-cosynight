@@ -90,8 +90,7 @@ class BeurerCosyNightCard extends HTMLElement {
     const zones = this._getZones();
     const title = this._config.title || "Beurer CosyNight";
 
-    const zoneMarkup = zones
-      .map((zone) => {
+    const renderZone = (zone) => {
         const stateObj = this._hass.states[zone.entity];
         const level = stateObj ? stateObj.state : "unknown";
         const alpha = this._zoneHeatAlpha(level);
@@ -119,51 +118,68 @@ class BeurerCosyNightCard extends HTMLElement {
             </div>
           </div>
         `;
-      })
-      .join("");
+      };
+
+    const renderTimerRow = (timer) => {
+      const timerSelectEntity = timer.timer_select_entity;
+      const timerSensorEntity = timer.timer_sensor_entity;
+      const stopButtonEntity = timer.stop_button_entity;
+
+      const timerSelectState = timerSelectEntity ? this._hass.states[timerSelectEntity] : undefined;
+      const timerCurrent = timerSelectState ? timerSelectState.state : "";
+      const timerOptions = (timerSelectState && timerSelectState.attributes && timerSelectState.attributes.options) || [];
+      const timerOptionsMarkup = timerOptions
+        .map((opt) => {
+          const selected = String(opt) === String(timerCurrent) ? " selected" : "";
+          return `<option value="${String(opt)}"${selected}>${String(opt)}</option>`;
+        })
+        .join("");
+
+      const timerRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
+        ? this._hass.states[timerSensorEntity].state
+        : "";
+
+      return `
+        <div class="timer-row">
+          <div class="timer-title">${timer.name || "Timer"}</div>
+          ${timerSelectEntity ? `<label>Duration: <select class="timer-pick" data-entity="${timerSelectEntity}">${timerOptionsMarkup}</select></label>` : ""}
+          ${timerSensorEntity ? `<div class="timer-readout">Remaining: ${timerRemaining}</div>` : ""}
+          ${stopButtonEntity ? `<button class="stop" data-entity="${stopButtonEntity}">Stop</button>` : ""}
+        </div>
+      `;
+    };
 
     const timerControls = this._getTimerControls();
-    const footer = timerControls.length
-      ? `
-        <div class="footer">
-          ${timerControls.map((timer) => {
-            const timerSelectEntity = timer.timer_select_entity;
-            const timerSensorEntity = timer.timer_sensor_entity;
-            const stopButtonEntity = timer.stop_button_entity;
+    const zoneColumns = [[], []];
+    zones.forEach((zone, idx) => {
+      zoneColumns[idx % 2].push(zone);
+    });
 
-            const timerSelectState = timerSelectEntity ? this._hass.states[timerSelectEntity] : undefined;
-            const timerCurrent = timerSelectState ? timerSelectState.state : "";
-            const timerOptions = (timerSelectState && timerSelectState.attributes && timerSelectState.attributes.options) || [];
-            const timerOptionsMarkup = timerOptions
-              .map((opt) => {
-                const selected = String(opt) === String(timerCurrent) ? " selected" : "";
-                return `<option value="${String(opt)}"${selected}>${String(opt)}</option>`;
-              })
-              .join("");
+    const timerColumns = [[], []];
+    timerControls.forEach((timer, idx) => {
+      timerColumns[idx % 2].push(timer);
+    });
 
-            const timerRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
-              ? this._hass.states[timerSensorEntity].state
-              : "";
-
-            return `
-              <div class="timer-row">
-                <div class="timer-title">${timer.name || "Timer"}</div>
-                ${timerSelectEntity ? `<label>Duration: <select class="timer-pick" data-entity="${timerSelectEntity}">${timerOptionsMarkup}</select></label>` : ""}
-                ${timerSensorEntity ? `<div class="timer-readout">Remaining: ${timerRemaining}</div>` : ""}
-                ${stopButtonEntity ? `<button class="stop" data-entity="${stopButtonEntity}">Stop</button>` : ""}
-              </div>
-            `;
-          }).join("")}
-        </div>
-      `
-      : "";
+    const hasRightColumn = zoneColumns[1].length > 0 || timerColumns[1].length > 0;
+    const columnsMarkup = [0, 1]
+      .filter((colIdx) => colIdx === 0 || hasRightColumn)
+      .map((colIdx) => {
+        const zonesMarkup = zoneColumns[colIdx].map((zone) => renderZone(zone)).join("");
+        const timersMarkup = timerColumns[colIdx].map((timer) => renderTimerRow(timer)).join("");
+        return `
+          <div class="side-column">
+            <div class="side-zones">${zonesMarkup}</div>
+            ${timersMarkup ? `<div class="side-timers">${timersMarkup}</div>` : ""}
+          </div>
+        `;
+      })
+      .join("");
 
     this._root.innerHTML = `
       <ha-card>
         <div class="wrap">
           <div class="title">${title}</div>
-          <div class="grid">${zoneMarkup}</div>
-          ${footer}
+          <div class="columns ${hasRightColumn ? "two-col" : "one-col"}">${columnsMarkup}</div>
         </div>
       </ha-card>
       <style>
@@ -177,9 +193,27 @@ class BeurerCosyNightCard extends HTMLElement {
           margin-bottom: 10px;
         }
 
-        .grid {
+        .columns {
           display: grid;
+          gap: 10px;
+        }
+
+        .columns.two-col {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .columns.one-col {
+          grid-template-columns: 1fr;
+        }
+
+        .side-zones {
+          display: grid;
+          gap: 10px;
+        }
+
+        .side-timers {
+          margin-top: 10px;
+          display: grid;
           gap: 10px;
         }
 
@@ -223,12 +257,6 @@ class BeurerCosyNightCard extends HTMLElement {
           font-weight: 700;
         }
 
-        .footer {
-          margin-top: 12px;
-          display: grid;
-          gap: 10px;
-        }
-
         .timer-row {
           display: flex;
           gap: 10px;
@@ -248,7 +276,7 @@ class BeurerCosyNightCard extends HTMLElement {
         }
 
         @media (max-width: 680px) {
-          .grid {
+          .columns.two-col {
             grid-template-columns: 1fr;
           }
         }

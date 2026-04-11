@@ -84,6 +84,8 @@ timers:
     stop_button_entity: button.right_side_stop
 ```
 
+Timer rows are visually grouped under each zone column. The first timer is shown under the left column, the second under the right column, and additional timers alternate.
+
 Find your entities under **Settings → Devices & Services → Beurer CosyNight**.
 
 ## Credits
