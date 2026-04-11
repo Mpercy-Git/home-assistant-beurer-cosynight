@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -13,7 +12,6 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 CARD_NAME = "beurer-cosynight-card"
-CARD_URL_PATH = f"/beurer_cosynight/{CARD_NAME}.js"
 CARD_REGISTERED_KEY = "_card_registered"
 
 
@@ -25,18 +23,15 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     if not domain_data.get(CARD_REGISTERED_KEY):
         frontend_file = Path(__file__).parent / "frontend" / f"{CARD_NAME}.js"
-        await hass.http.async_register_static_paths(
-            [
-                StaticPathConfig(
-                    CARD_URL_PATH,
-                    str(frontend_file),
-                    cache_headers=False,
-                )
-            ]
+        
+        # Register static path for the card
+        hass.http.register_static_path(
+            f"/beurer_cosynight/{CARD_NAME}.js",
+            str(frontend_file),
+            cache_headers=False,
         )
 
-        # Make the card available as a Lovelace resource automatically.
-        hass.components.frontend.add_extra_js_url(hass, CARD_URL_PATH)
+        _LOGGER.info("Registered Beurer CosyNight card at /beurer_cosynight/%s.js", CARD_NAME)
         domain_data[CARD_REGISTERED_KEY] = True
     
     await hass.config_entries.async_forward_entry_setups(config_entry, ["select"])

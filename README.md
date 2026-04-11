@@ -24,7 +24,7 @@ Setup is done entirely through the Home Assistant GUI. No YAML configuration is 
 
 ## Dashboard Card (Lovelace)
 
-A visual card example is included in [beurer-card-example.yaml](beurer-card-example.yaml).
+A visual card is bundled with the integration as `custom:beurer-cosynight-card`.
 
 It provides:
 
@@ -34,6 +34,7 @@ It provides:
 	- +/- buttons for quick level stepping
 	- Per-zone dropdown selector for direct level selection
 	- Optional timer selector, timer readout, and stop button
+- **GUI configuration** — configure zones and timer entities via the visual dashboard editor
 
 ### Requirements
 
@@ -41,14 +42,47 @@ It provides:
 
 ### Setup
 
-1. Restart Home Assistant after installing/updating the integration.
-2. Add a **Manual** card and paste [beurer-card-example.yaml](beurer-card-example.yaml).
-3. Replace the example entity IDs (for example `select.left_side_body_zone`) with your actual entities.
-4. If you only have one side/device, remove the right-side zones.
+1. **Restart Home Assistant** after installing/updating the integration (to load the bundled card).
 
-The card type is `custom:beurer-cosynight-card` and is served by the integration at `/beurer_cosynight/beurer-cosynight-card.js`.
+2. Add the card resource to your Lovelace resources:
+   - Go to **Settings → Dashboards → Resources**
+   - Click **Create Resource**
+   - URL: `/beurer_cosynight/beurer-cosynight-card.js`
+   - Resource type: `JavaScript Module`
+   - Click **Create**
 
-You can find your entities under **Settings -> Devices & Services -> Beurer CosyNight**.
+3. Create a new card:
+   - Add a **Manual** card to your dashboard (or use the **Create card** button)
+   - Type: `custom:beurer-cosynight-card`
+   - Click on the card to open the **visual editor** and configure:
+     - Card title
+     - Zone names & entity IDs
+     - Timer selector and stop button (optional)
+
+4. Alternatively, paste this YAML config and replace entity IDs:
+
+```yaml
+type: custom:beurer-cosynight-card
+title: Beurer CosyNight
+zones:
+  - name: Left Body
+    entity: select.left_side_body_zone
+    tone: body
+  - name: Right Body
+    entity: select.right_side_body_zone
+    tone: body
+  - name: Left Feet
+    entity: select.left_side_feet_zone
+    tone: feet_left
+  - name: Right Feet
+    entity: select.right_side_feet_zone
+    tone: feet_right
+timer_select_entity: select.left_side_timer
+timer_sensor_entity: sensor.left_side_timer
+stop_button_entity: button.left_side_stop
+```
+
+Find your entities under **Settings → Devices & Services → Beurer CosyNight**.
 
 ## Credits
 

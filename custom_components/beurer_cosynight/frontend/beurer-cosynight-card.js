@@ -263,13 +263,197 @@ class BeurerCosyNightCard extends HTMLElement {
       option: String(option),
     });
   }
+
+  static getConfigElement() {
+    return document.createElement("beurer-cosynight-card-editor");
+  }
+
+  static getStubConfig() {
+    return {
+      title: "Beurer CosyNight",
+      zones: [
+        { name: "Left Body", entity: "", tone: "body" },
+        { name: "Right Body", entity: "", tone: "body" },
+        { name: "Left Feet", entity: "", tone: "feet_left" },
+        { name: "Right Feet", entity: "", tone: "feet_right" },
+      ],
+    };
+  }
 }
 
 customElements.define("beurer-cosynight-card", BeurerCosyNightCard);
+
+class BeurerCosyNightCardEditor extends HTMLElement {
+  setHass(hass) {
+    this._hass = hass;
+  }
+
+  setConfig(config) {
+    this._config = config || {};
+    this._render();
+  }
+
+  get _title() {
+    return this._config.title || "Beurer CosyNight";
+  }
+
+  get _zones() {
+    return this._config.zones || [];
+  }
+
+  get _timerSelectEntity() {
+    return this._config.timer_select_entity || "";
+  }
+
+  get _timerSensorEntity() {
+    return this._config.timer_sensor_entity || "";
+  }
+
+  get _stopButtonEntity() {
+    return this._config.stop_button_entity || "";
+  }
+
+  _render() {
+    this.innerHTML = `
+      <div style="padding: 16px;">
+        <div style="margin-bottom: 16px;">
+          <label>
+            Card Title:
+            <input type="text" id="title" value="${this._title}" 
+              style="width: 200px; padding: 6px; margin-left: 8px;">
+          </label>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <h3>Zones</h3>
+          <div id="zones-container"></div>
+          <button id="add-zone" style="margin-top: 8px; padding: 6px 12px;">+ Add Zone</button>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label>
+            Timer Select Entity:
+            <input type="text" id="timer_select_entity" value="${this._timerSelectEntity}" 
+              style="width: 250px; padding: 6px; margin-left: 8px;" placeholder="select.timer">
+          </label>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label>
+            Timer Sensor Entity:
+            <input type="text" id="timer_sensor_entity" value="${this._timerSensorEntity}" 
+              style="width: 250px; padding: 6px; margin-left: 8px;" placeholder="sensor.timer">
+          </label>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label>
+            Stop Button Entity:
+            <input type="text" id="stop_button_entity" value="${this._stopButtonEntity}" 
+              style="width: 250px; padding: 6px; margin-left: 8px;" placeholder="button.stop">
+          </label>
+        </div>
+      </div>
+    `;
+
+    const titleInput = this.querySelector("#title");
+    titleInput.addEventListener("change", () => this._updateConfig());
+
+    const timerSelectInput = this.querySelector("#timer_select_entity");
+    timerSelectInput.addEventListener("change", () => this._updateConfig());
+
+    const timerSensorInput = this.querySelector("#timer_sensor_entity");
+    timerSensorInput.addEventListener("change", () => this._updateConfig());
+
+    const stopButtonInput = this.querySelector("#stop_button_entity");
+    stopButtonInput.addEventListener("change", () => this._updateConfig());
+
+    const addZoneBtn = this.querySelector("#add-zone");
+    addZoneBtn.addEventListener("click", () => this._addZone());
+
+    this._renderZones();
+  }
+
+  _renderZones() {
+    const container = this.querySelector("#zones-container");
+    container.innerHTML = this._zones
+      .map((zone, idx) => {
+        const tones = ["body", "feet_left", "feet_right"];
+        const toneOptions = tones
+          .map((t) => {
+            const selected = zone.tone === t ? " selected" : "";
+            return `<option value="${t}"${selected}>${t}</option>`;
+          })
+          .join("");
+
+        return `
+          <div style="margin-bottom: 12px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <div>
+              <label>Name: <input type="text" class="zone-name" data-idx="${idx}" value="${zone.name || ""}" style="width: 150px; padding: 4px; margin: 0 8px;"></label>
+            </div>
+            <div>
+              <label>Entity: <input type="text" class="zone-entity" data-idx="${idx}" value="${zone.entity || ""}" style="width: 200px; padding: 4px; margin: 0 8px;" placeholder="select.zone"></label>
+            </div>
+            <div>
+              <label>Tone: <select class="zone-tone" data-idx="${idx}" style="padding: 4px; margin: 0 8px;">${toneOptions}</select></label>
+              <button class="remove-zone" data-idx="${idx}" style="padding: 4px 8px; margin-left: 8px;">Remove</button>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    this.querySelectorAll(".zone-name, .zone-entity, .zone-tone").forEach((input) => {
+      input.addEventListener("change", () => this._updateConfig());
+    });
+
+    this.querySelectorAll(".remove-zone").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute("data-idx"), 10);
+        this._removeZone(idx);
+      });
+    });
+  }
+
+  _addZone() {
+    this._config.zones = this._config.zones || [];
+    this._config.zones.push({ name: "New Zone", entity: "", tone: "body" });
+    this._render();
+    this._updateConfig();
+  }
+
+  _removeZone(idx) {
+    this._config.zones.splice(idx, 1);
+    this._render();
+    this._updateConfig();
+  }
+
+  _updateConfig() {
+    const title = this.querySelector("#title").value;
+    const zones = this._zones.map((zone, idx) => ({
+      name: this.querySelector(`.zone-name[data-idx="${idx}"]`)?.value || zone.name,
+      entity: this.querySelector(`.zone-entity[data-idx="${idx}"]`)?.value || zone.entity,
+      tone: this.querySelector(`.zone-tone[data-idx="${idx}"]`)?.value || zone.tone,
+    }));
+
+    this._config.title = title;
+    this._config.zones = zones;
+    this._config.timer_select_entity = this.querySelector("#timer_select_entity").value || undefined;
+    this._config.timer_sensor_entity = this.querySelector("#timer_sensor_entity").value || undefined;
+    this._config.stop_button_entity = this.querySelector("#stop_button_entity").value || undefined;
+
+    const event = new CustomEvent("config-changed", { detail: { config: this._config } });
+    this.dispatchEvent(event);
+  }
+}
+
+customElements.define("beurer-cosynight-card-editor", BeurerCosyNightCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "beurer-cosynight-card",
   name: "Beurer CosyNight Card",
   description: "Control and view Beurer CosyNight heat zones and timer.",
+  preview: false,
+  configurable: true,
 });
