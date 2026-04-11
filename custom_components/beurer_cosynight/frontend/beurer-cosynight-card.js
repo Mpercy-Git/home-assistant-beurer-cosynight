@@ -286,8 +286,12 @@ if (!customElements.get("beurer-cosynight-card")) {
 }
 
 class BeurerCosyNightCardEditor extends HTMLElement {
-  setHass(hass) {
+  set hass(hass) {
     this._hass = hass;
+  }
+
+  setHass(hass) {
+    this.hass = hass;
   }
 
   setConfig(config) {
@@ -438,14 +442,23 @@ class BeurerCosyNightCardEditor extends HTMLElement {
       tone: this.querySelector(`.zone-tone[data-idx="${idx}"]`)?.value || zone.tone,
     }));
 
-    this._config.title = title;
-    this._config.zones = zones;
-    this._config.timer_select_entity = this.querySelector("#timer_select_entity").value || undefined;
-    this._config.timer_sensor_entity = this.querySelector("#timer_sensor_entity").value || undefined;
-    this._config.stop_button_entity = this.querySelector("#stop_button_entity").value || undefined;
+    const nextConfig = {
+      ...this._config,
+      title,
+      zones,
+      timer_select_entity: this.querySelector("#timer_select_entity").value || undefined,
+      timer_sensor_entity: this.querySelector("#timer_sensor_entity").value || undefined,
+      stop_button_entity: this.querySelector("#stop_button_entity").value || undefined,
+    };
 
-    const event = new CustomEvent("config-changed", { detail: { config: this._config } });
-    this.dispatchEvent(event);
+    this._config = nextConfig;
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config: nextConfig },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 }
 
