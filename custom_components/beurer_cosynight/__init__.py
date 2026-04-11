@@ -7,6 +7,7 @@ from pathlib import Path
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
@@ -20,10 +21,13 @@ CARD_VERSION = "1.1.8"
 
 async def _register_frontend_resource(hass: HomeAssistant, card_url: str) -> None:
     """Register the frontend resource using whichever API is available."""
-    try:
+    async def _inject_url() -> None:
         from homeassistant.components.frontend import add_extra_js_url
 
         add_extra_js_url(hass, card_url)
+
+    try:
+        await _inject_url()
         return
     except Exception as err:
         _LOGGER.debug("add_extra_js_url unavailable/failed: %s", err)
@@ -34,7 +38,17 @@ async def _register_frontend_resource(hass: HomeAssistant, card_url: str) -> Non
         await async_register_extra_js_url(hass, card_url)
         return
     except Exception as err:
-        _LOGGER.warning("Could not auto-register frontend card resource: %s", err)
+        _LOGGER.warning("Could not auto-register frontend card resource immediately: %s", err)
+
+    # Frontend may not be initialized yet. Retry when HA is fully started.
+    async def _late_register(_event) -> None:
+        try:
+            await _inject_url()
+            _LOGGER.info("Late-registered frontend card resource: %s", card_url)
+        except Exception as late_err:
+            _LOGGER.warning("Late frontend card registration failed: %s", late_err)
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _late_register)
 
 
 async def _async_register_card(hass: HomeAssistant) -> None:
