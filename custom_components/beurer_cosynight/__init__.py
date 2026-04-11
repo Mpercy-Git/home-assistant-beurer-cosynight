@@ -5,10 +5,13 @@ import logging
 import os
 from pathlib import Path
 
+import asyncio
+
+from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN
 
@@ -21,32 +24,36 @@ CARD_VERSION = "1.1.8"
 
 async def _register_frontend_resource(hass: HomeAssistant, card_url: str) -> None:
     """Register the frontend resource using whichever API is available."""
-    async def _inject_url() -> None:
-        from homeassistant.components.frontend import add_extra_js_url
-
-        add_extra_js_url(hass, card_url)
-
-    try:
-        await _inject_url()
-        return
-    except Exception as err:
-        _LOGGER.debug("add_extra_js_url unavailable/failed: %s", err)
+    async def _inject_when_ready(max_attempts: int = 20) -> bool:
+        """Inject module URL once frontend url managers are initialized."""
+        for _ in range(max_attempts):
+            if frontend.DATA_EXTRA_MODULE_URL in hass.data:
+                frontend.add_extra_js_url(hass, card_url)
+                return True
+            await asyncio.sleep(1)
+        return False
 
     try:
-        from homeassistant.components.frontend import async_register_extra_js_url
-
-        await async_register_extra_js_url(hass, card_url)
-        return
+        if await _inject_when_ready(max_attempts=1):
+            _LOGGER.info("Registered frontend card resource immediately: %s", card_url)
+            return
     except Exception as err:
-        _LOGGER.warning("Could not auto-register frontend card resource immediately: %s", err)
+        _LOGGER.debug("Immediate frontend card resource injection failed: %s", err)
 
     # Frontend may not be initialized yet. Retry when HA is fully started.
-    async def _late_register(_event) -> None:
-        try:
-            await _inject_url()
+    async def _late_register_task() -> None:
+        if await _inject_when_ready():
             _LOGGER.info("Late-registered frontend card resource: %s", card_url)
-        except Exception as late_err:
-            _LOGGER.warning("Late frontend card registration failed: %s", late_err)
+            return
+        _LOGGER.warning("Late frontend card registration timed out: %s", card_url)
+
+    @callback
+    def _late_register(_event) -> None:
+        hass.async_create_task(_late_register_task())
+
+    if hass.is_running:
+        hass.async_create_task(_late_register_task())
+        return
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _late_register)
 
