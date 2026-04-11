@@ -6,6 +6,6 @@
   "documentation": "https://github.com/damonkohler/home-assistant-beurer-cosynight",
   "iot_class": "cloud_polling",
   "requirements": ["voluptuous"],
-  "version": "1.2.3",
+  "version": "1.2.4",
   "config_flow": true
 }

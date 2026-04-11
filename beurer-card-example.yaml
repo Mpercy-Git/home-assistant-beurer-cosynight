@@ -8,16 +8,16 @@ title: Beurer CosyNight
 zones:
   - name: Left Body
     entity: select.left_side_body_zone
-    tone: body
+    colour_style: body
   - name: Right Body
     entity: select.right_side_body_zone
-    tone: body
+    colour_style: body
   - name: Left Feet
     entity: select.left_side_feet_zone
-    tone: feet_left
+    colour_style: feet
   - name: Right Feet
     entity: select.right_side_feet_zone
-    tone: feet_right
+    colour_style: feet
 timer_select_entity: select.left_side_timer
 timer_sensor_entity: sensor.left_side_timer
 stop_button_entity: button.left_side_stop

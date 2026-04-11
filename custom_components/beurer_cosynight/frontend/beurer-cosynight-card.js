@@ -24,24 +24,32 @@ class BeurerCosyNightCard extends HTMLElement {
 
   _getZones() {
     if (Array.isArray(this._config.zones) && this._config.zones.length) {
-      return this._config.zones;
+      return this._config.zones.map((zone) => ({
+        ...zone,
+        colour_style: this._normaliseColourStyle(zone),
+      }));
     }
 
     const fallback = [
-      { name: "Left Body", entity: this._config.left_body_entity, tone: "body" },
-      { name: "Right Body", entity: this._config.right_body_entity, tone: "body" },
-      { name: "Left Feet", entity: this._config.left_feet_entity, tone: "feet_left" },
-      { name: "Right Feet", entity: this._config.right_feet_entity, tone: "feet_right" },
+      { name: "Left Body", entity: this._config.left_body_entity, colour_style: "body" },
+      { name: "Right Body", entity: this._config.right_body_entity, colour_style: "body" },
+      { name: "Left Feet", entity: this._config.left_feet_entity, colour_style: "feet" },
+      { name: "Right Feet", entity: this._config.right_feet_entity, colour_style: "feet" },
     ];
 
     return fallback.filter((z) => z.entity);
   }
 
-  _toneBase(tone) {
-    if (tone === "feet_left") {
-      return [255, 145, 79];
+  _normaliseColourStyle(zone) {
+    const raw = String(zone.colour_style || zone.tone || "body");
+    if (raw === "feet_left" || raw === "feet_right") {
+      return "feet";
     }
-    if (tone === "feet_right") {
+    return raw === "feet" ? "feet" : "body";
+  }
+
+  _colourStyleBase(colourStyle) {
+    if (colourStyle === "feet") {
       return [255, 189, 64];
     }
     return [255, 193, 102];
@@ -68,7 +76,7 @@ class BeurerCosyNightCard extends HTMLElement {
         const stateObj = this._hass.states[zone.entity];
         const level = stateObj ? stateObj.state : "unknown";
         const alpha = this._zoneHeatAlpha(level);
-        const base = this._toneBase(zone.tone);
+        const base = this._colourStyleBase(zone.colour_style);
         const gradient = `linear-gradient(180deg, rgba(${base[0]}, ${base[1] + 36}, ${base[2] + 48}, ${alpha}) 0%, rgba(${base[0]}, ${base[1]}, ${base[2]}, ${alpha}) 100%)`;
 
         const options = (stateObj && stateObj.attributes && stateObj.attributes.options) || [];
@@ -272,10 +280,10 @@ class BeurerCosyNightCard extends HTMLElement {
     return {
       title: "Beurer CosyNight",
       zones: [
-        { name: "Left Body", entity: "", tone: "body" },
-        { name: "Right Body", entity: "", tone: "body" },
-        { name: "Left Feet", entity: "", tone: "feet_left" },
-        { name: "Right Feet", entity: "", tone: "feet_right" },
+        { name: "Left Body", entity: "", colour_style: "body" },
+        { name: "Right Body", entity: "", colour_style: "body" },
+        { name: "Left Feet", entity: "", colour_style: "feet" },
+        { name: "Right Feet", entity: "", colour_style: "feet" },
       ],
     };
   }
@@ -384,11 +392,11 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     const container = this.querySelector("#zones-container");
     container.innerHTML = this._zones
       .map((zone, idx) => {
-        const tones = ["body", "feet_left", "feet_right"];
-        const toneOptions = tones
-          .map((t) => {
-            const selected = zone.tone === t ? " selected" : "";
-            return `<option value="${t}"${selected}>${t}</option>`;
+        const styles = ["body", "feet"];
+        const styleOptions = styles
+          .map((style) => {
+            const selected = this._normaliseColourStyle(zone) === style ? " selected" : "";
+            return `<option value="${style}"${selected}>${style}</option>`;
           })
           .join("");
 
@@ -401,7 +409,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
               <label>Entity: <input type="text" class="zone-entity" data-idx="${idx}" value="${zone.entity || ""}" style="width: 200px; padding: 4px; margin: 0 8px;" placeholder="select.zone"></label>
             </div>
             <div>
-              <label>Tone: <select class="zone-tone" data-idx="${idx}" style="padding: 4px; margin: 0 8px;">${toneOptions}</select></label>
+              <label>Colour Style: <select class="zone-colour-style" data-idx="${idx}" style="padding: 4px; margin: 0 8px;">${styleOptions}</select></label>
               <button class="remove-zone" data-idx="${idx}" style="padding: 4px 8px; margin-left: 8px;">Remove</button>
             </div>
           </div>
@@ -409,7 +417,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
       })
       .join("");
 
-    this.querySelectorAll(".zone-name, .zone-entity, .zone-tone").forEach((input) => {
+    this.querySelectorAll(".zone-name, .zone-entity, .zone-colour-style").forEach((input) => {
       input.addEventListener("change", () => this._updateConfig());
     });
 
@@ -423,7 +431,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
 
   _addZone() {
     this._config.zones = this._config.zones || [];
-    this._config.zones.push({ name: "New Zone", entity: "", tone: "body" });
+    this._config.zones.push({ name: "New Zone", entity: "", colour_style: "body" });
     this._render();
     this._updateConfig();
   }
@@ -439,7 +447,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     const zones = this._zones.map((zone, idx) => ({
       name: this.querySelector(`.zone-name[data-idx="${idx}"]`)?.value || zone.name,
       entity: this.querySelector(`.zone-entity[data-idx="${idx}"]`)?.value || zone.entity,
-      tone: this.querySelector(`.zone-tone[data-idx="${idx}"]`)?.value || zone.tone,
+      colour_style: this.querySelector(`.zone-colour-style[data-idx="${idx}"]`)?.value || this._normaliseColourStyle(zone),
     }));
 
     const nextConfig = {
