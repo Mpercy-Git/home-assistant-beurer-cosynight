@@ -21,6 +21,15 @@ zones:
 timer_select_entity: select.left_side_timer
 timer_sensor_entity: sensor.left_side_timer
 stop_button_entity: button.left_side_stop
+timers:
+  - name: Left Side
+    timer_select_entity: select.left_side_timer
+    timer_sensor_entity: sensor.left_side_timer
+    stop_button_entity: button.left_side_stop
+  - name: Right Side
+    timer_select_entity: select.right_side_timer
+    timer_sensor_entity: sensor.right_side_timer
+    stop_button_entity: button.right_side_stop
 
 # Notes:
 # - Use +/- buttons or dropdown on each tile to change level.

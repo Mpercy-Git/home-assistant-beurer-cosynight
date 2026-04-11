@@ -63,6 +63,25 @@ class BeurerCosyNightCard extends HTMLElement {
     return Math.max(0.12, Math.min(0.85, 0.12 + value * 0.08));
   }
 
+  _getTimerControls() {
+    if (Array.isArray(this._config.timers) && this._config.timers.length) {
+      return this._config.timers;
+    }
+
+    const legacy = {
+      name: this._config.timer_name || "Timer",
+      timer_select_entity: this._config.timer_select_entity,
+      timer_sensor_entity: this._config.timer_sensor_entity,
+      stop_button_entity: this._config.stop_button_entity,
+    };
+
+    if (legacy.timer_select_entity || legacy.timer_sensor_entity || legacy.stop_button_entity) {
+      return [legacy];
+    }
+
+    return [];
+  }
+
   _render() {
     if (!this._hass || !this._config) {
       return;
@@ -103,30 +122,38 @@ class BeurerCosyNightCard extends HTMLElement {
       })
       .join("");
 
-    const timerSelectEntity = this._config.timer_select_entity;
-    const timerSensorEntity = this._config.timer_sensor_entity;
-    const stopButtonEntity = this._config.stop_button_entity;
-
-    const timerSelectState = timerSelectEntity ? this._hass.states[timerSelectEntity] : undefined;
-    const timerCurrent = timerSelectState ? timerSelectState.state : "";
-    const timerOptions = (timerSelectState && timerSelectState.attributes && timerSelectState.attributes.options) || [];
-    const timerOptionsMarkup = timerOptions
-      .map((opt) => {
-        const selected = String(opt) === String(timerCurrent) ? " selected" : "";
-        return `<option value="${String(opt)}"${selected}>${String(opt)}</option>`;
-      })
-      .join("");
-
-    const timerRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
-      ? this._hass.states[timerSensorEntity].state
-      : "";
-
-    const footer = (timerSelectEntity || timerSensorEntity || stopButtonEntity)
+    const timerControls = this._getTimerControls();
+    const footer = timerControls.length
       ? `
         <div class="footer">
-          ${timerSelectEntity ? `<label>Timer: <select class="timer-pick" data-entity="${timerSelectEntity}">${timerOptionsMarkup}</select></label>` : ""}
-          ${timerSensorEntity ? `<div class="timer-readout">Remaining: ${timerRemaining}</div>` : ""}
-          ${stopButtonEntity ? `<button class="stop" data-entity="${stopButtonEntity}">Stop</button>` : ""}
+          ${timerControls.map((timer) => {
+            const timerSelectEntity = timer.timer_select_entity;
+            const timerSensorEntity = timer.timer_sensor_entity;
+            const stopButtonEntity = timer.stop_button_entity;
+
+            const timerSelectState = timerSelectEntity ? this._hass.states[timerSelectEntity] : undefined;
+            const timerCurrent = timerSelectState ? timerSelectState.state : "";
+            const timerOptions = (timerSelectState && timerSelectState.attributes && timerSelectState.attributes.options) || [];
+            const timerOptionsMarkup = timerOptions
+              .map((opt) => {
+                const selected = String(opt) === String(timerCurrent) ? " selected" : "";
+                return `<option value="${String(opt)}"${selected}>${String(opt)}</option>`;
+              })
+              .join("");
+
+            const timerRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
+              ? this._hass.states[timerSensorEntity].state
+              : "";
+
+            return `
+              <div class="timer-row">
+                <div class="timer-title">${timer.name || "Timer"}</div>
+                ${timerSelectEntity ? `<label>Duration: <select class="timer-pick" data-entity="${timerSelectEntity}">${timerOptionsMarkup}</select></label>` : ""}
+                ${timerSensorEntity ? `<div class="timer-readout">Remaining: ${timerRemaining}</div>` : ""}
+                ${stopButtonEntity ? `<button class="stop" data-entity="${stopButtonEntity}">Stop</button>` : ""}
+              </div>
+            `;
+          }).join("")}
         </div>
       `
       : "";
@@ -198,10 +225,22 @@ class BeurerCosyNightCard extends HTMLElement {
 
         .footer {
           margin-top: 12px;
+          display: grid;
+          gap: 10px;
+        }
+
+        .timer-row {
           display: flex;
           gap: 10px;
           align-items: center;
           flex-wrap: wrap;
+          padding: 8px;
+          border: 1px solid rgba(0, 0, 0, 0.12);
+          border-radius: 10px;
+        }
+
+        .timer-title {
+          font-weight: 700;
         }
 
         .timer-readout {
@@ -232,21 +271,19 @@ class BeurerCosyNightCard extends HTMLElement {
       });
     });
 
-    const timerPick = this._root.querySelector("select.timer-pick");
-    if (timerPick) {
+    this._root.querySelectorAll("select.timer-pick").forEach((timerPick) => {
       timerPick.addEventListener("change", (ev) => {
         const entity = ev.currentTarget.getAttribute("data-entity");
         this._selectOption(entity, ev.currentTarget.value);
       });
-    }
+    });
 
-    const stop = this._root.querySelector("button.stop");
-    if (stop) {
+    this._root.querySelectorAll("button.stop").forEach((stop) => {
       stop.addEventListener("click", (ev) => {
         const entity = ev.currentTarget.getAttribute("data-entity");
         this._hass.callService("button", "press", { entity_id: entity });
       });
-    }
+    });
   }
 
   _stepLevel(entityId, delta) {
@@ -284,6 +321,10 @@ class BeurerCosyNightCard extends HTMLElement {
         { name: "Right Body", entity: "", colour_style: "body" },
         { name: "Left Feet", entity: "", colour_style: "feet" },
         { name: "Right Feet", entity: "", colour_style: "feet" },
+      ],
+      timers: [
+        { name: "Left Side", timer_select_entity: "", timer_sensor_entity: "", stop_button_entity: "" },
+        { name: "Right Side", timer_select_entity: "", timer_sensor_entity: "", stop_button_entity: "" },
       ],
     };
   }
@@ -327,6 +368,23 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     return this._config.stop_button_entity || "";
   }
 
+  get _timers() {
+    if (Array.isArray(this._config.timers)) {
+      return this._config.timers;
+    }
+    if (this._config.timer_select_entity || this._config.timer_sensor_entity || this._config.stop_button_entity) {
+      return [
+        {
+          name: this._config.timer_name || "Timer",
+          timer_select_entity: this._config.timer_select_entity || "",
+          timer_sensor_entity: this._config.timer_sensor_entity || "",
+          stop_button_entity: this._config.stop_button_entity || "",
+        },
+      ];
+    }
+    return [];
+  }
+
   _normaliseColourStyle(zone) {
     const raw = String(zone.colour_style || zone.tone || "body");
     if (raw === "feet_left" || raw === "feet_right") {
@@ -353,27 +411,9 @@ class BeurerCosyNightCardEditor extends HTMLElement {
         </div>
 
         <div style="margin-bottom: 16px;">
-          <label>
-            Timer Select Entity:
-            <input type="text" id="timer_select_entity" value="${this._timerSelectEntity}" 
-              style="width: 250px; padding: 6px; margin-left: 8px;" placeholder="select.timer">
-          </label>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label>
-            Timer Sensor Entity:
-            <input type="text" id="timer_sensor_entity" value="${this._timerSensorEntity}" 
-              style="width: 250px; padding: 6px; margin-left: 8px;" placeholder="sensor.timer">
-          </label>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label>
-            Stop Button Entity:
-            <input type="text" id="stop_button_entity" value="${this._stopButtonEntity}" 
-              style="width: 250px; padding: 6px; margin-left: 8px;" placeholder="button.stop">
-          </label>
+          <h3>Timers</h3>
+          <div id="timers-container"></div>
+          <button id="add-timer" style="margin-top: 8px; padding: 6px 12px;">+ Add Timer Row</button>
         </div>
       </div>
     `;
@@ -381,19 +421,14 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     const titleInput = this.querySelector("#title");
     titleInput.addEventListener("change", () => this._updateConfig());
 
-    const timerSelectInput = this.querySelector("#timer_select_entity");
-    timerSelectInput.addEventListener("change", () => this._updateConfig());
-
-    const timerSensorInput = this.querySelector("#timer_sensor_entity");
-    timerSensorInput.addEventListener("change", () => this._updateConfig());
-
-    const stopButtonInput = this.querySelector("#stop_button_entity");
-    stopButtonInput.addEventListener("change", () => this._updateConfig());
-
     const addZoneBtn = this.querySelector("#add-zone");
     addZoneBtn.addEventListener("click", () => this._addZone());
 
+    const addTimerBtn = this.querySelector("#add-timer");
+    addTimerBtn.addEventListener("click", () => this._addTimer());
+
     this._renderZones();
+    this._renderTimers();
   }
 
   _renderZones() {
@@ -444,6 +479,59 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     this._updateConfig();
   }
 
+  _renderTimers() {
+    const container = this.querySelector("#timers-container");
+    container.innerHTML = this._timers
+      .map((timer, idx) => `
+        <div style="margin-bottom: 12px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+          <div>
+            <label>Name: <input type="text" class="timer-name" data-idx="${idx}" value="${timer.name || ""}" style="width: 150px; padding: 4px; margin: 0 8px;"></label>
+          </div>
+          <div>
+            <label>Timer Select Entity: <input type="text" class="timer-select" data-idx="${idx}" value="${timer.timer_select_entity || ""}" style="width: 240px; padding: 4px; margin: 0 8px;" placeholder="select.timer"></label>
+          </div>
+          <div>
+            <label>Timer Sensor Entity: <input type="text" class="timer-sensor" data-idx="${idx}" value="${timer.timer_sensor_entity || ""}" style="width: 240px; padding: 4px; margin: 0 8px;" placeholder="sensor.timer"></label>
+          </div>
+          <div>
+            <label>Stop Button Entity: <input type="text" class="timer-stop" data-idx="${idx}" value="${timer.stop_button_entity || ""}" style="width: 240px; padding: 4px; margin: 0 8px;" placeholder="button.stop"></label>
+            <button class="remove-timer" data-idx="${idx}" style="padding: 4px 8px; margin-left: 8px;">Remove</button>
+          </div>
+        </div>
+      `)
+      .join("");
+
+    this.querySelectorAll(".timer-name, .timer-select, .timer-sensor, .timer-stop").forEach((input) => {
+      input.addEventListener("change", () => this._updateConfig());
+    });
+
+    this.querySelectorAll(".remove-timer").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute("data-idx"), 10);
+        this._removeTimer(idx);
+      });
+    });
+  }
+
+  _addTimer() {
+    this._config.timers = this._timers.slice();
+    this._config.timers.push({
+      name: "Timer",
+      timer_select_entity: "",
+      timer_sensor_entity: "",
+      stop_button_entity: "",
+    });
+    this._render();
+    this._updateConfig();
+  }
+
+  _removeTimer(idx) {
+    this._config.timers = this._timers.slice();
+    this._config.timers.splice(idx, 1);
+    this._render();
+    this._updateConfig();
+  }
+
   _removeZone(idx) {
     this._config.zones.splice(idx, 1);
     this._render();
@@ -458,14 +546,32 @@ class BeurerCosyNightCardEditor extends HTMLElement {
       colour_style: this.querySelector(`.zone-colour-style[data-idx="${idx}"]`)?.value || this._normaliseColourStyle(zone),
     }));
 
+    const timers = this._timers.map((timer, idx) => ({
+      name: this.querySelector(`.timer-name[data-idx="${idx}"]`)?.value || timer.name || "Timer",
+      timer_select_entity: this.querySelector(`.timer-select[data-idx="${idx}"]`)?.value || timer.timer_select_entity,
+      timer_sensor_entity: this.querySelector(`.timer-sensor[data-idx="${idx}"]`)?.value || timer.timer_sensor_entity,
+      stop_button_entity: this.querySelector(`.timer-stop[data-idx="${idx}"]`)?.value || timer.stop_button_entity,
+    })).filter((timer) => timer.timer_select_entity || timer.timer_sensor_entity || timer.stop_button_entity);
+
     const nextConfig = {
       ...this._config,
       title,
       zones,
-      timer_select_entity: this.querySelector("#timer_select_entity").value || undefined,
-      timer_sensor_entity: this.querySelector("#timer_sensor_entity").value || undefined,
-      stop_button_entity: this.querySelector("#stop_button_entity").value || undefined,
+      timers,
     };
+
+    // Backward-compatible first timer mirrors legacy fields.
+    if (timers[0]) {
+      nextConfig.timer_name = timers[0].name;
+      nextConfig.timer_select_entity = timers[0].timer_select_entity;
+      nextConfig.timer_sensor_entity = timers[0].timer_sensor_entity;
+      nextConfig.stop_button_entity = timers[0].stop_button_entity;
+    } else {
+      nextConfig.timer_name = undefined;
+      nextConfig.timer_select_entity = undefined;
+      nextConfig.timer_sensor_entity = undefined;
+      nextConfig.stop_button_entity = undefined;
+    }
 
     this._config = nextConfig;
     this.dispatchEvent(
