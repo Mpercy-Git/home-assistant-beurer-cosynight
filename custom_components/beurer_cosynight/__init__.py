@@ -44,12 +44,18 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     if not domain_data.get(CARD_REGISTERED_KEY):
         frontend_file = Path(__file__).parent / "frontend" / f"{CARD_NAME}.js"
         card_url = f"/beurer_cosynight/{CARD_NAME}.js"
+        local_card_url = f"/local/beurer_cosynight/{CARD_NAME}.js"
         
-        # Register static path for the card
+        # Register static paths for the card.
         await hass.http.async_register_static_paths(
             [
                 StaticPathConfig(
                     card_url,
+                    str(frontend_file),
+                    cache_headers=False,
+                ),
+                StaticPathConfig(
+                    local_card_url,
                     str(frontend_file),
                     cache_headers=False,
                 )
@@ -57,8 +63,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         )
 
         # Auto-load the card resource in the frontend.
-        await _register_frontend_resource(hass, card_url)
-        _LOGGER.info("Registered Beurer CosyNight card resource: %s", card_url)
+        await _register_frontend_resource(hass, local_card_url)
+        _LOGGER.info(
+            "Registered Beurer CosyNight card resources: %s and %s",
+            card_url,
+            local_card_url,
+        )
 
         domain_data[CARD_REGISTERED_KEY] = True
     
