@@ -6,7 +6,6 @@ from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.components.frontend import async_register_extra_js_url
 
 from .const import DOMAIN
 
@@ -32,12 +31,16 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
             cache_headers=False,
         )
 
-        # Auto-load the card resource in the frontend (no manual resource setup needed)
-        await async_register_extra_js_url(
-            hass, f"/beurer_cosynight/{CARD_NAME}.js"
-        )
+        # Auto-load the card resource in the frontend
+        try:
+            from homeassistant.components.frontend import async_register_extra_js_url
+            await async_register_extra_js_url(
+                hass, f"/beurer_cosynight/{CARD_NAME}.js"
+            )
+            _LOGGER.info("Registered Beurer CosyNight card at /beurer_cosynight/%s.js", CARD_NAME)
+        except Exception as e:
+            _LOGGER.warning("Could not auto-register frontend card: %s", e)
 
-        _LOGGER.info("Registered Beurer CosyNight card at /beurer_cosynight/%s.js", CARD_NAME)
         domain_data[CARD_REGISTERED_KEY] = True
     
     await hass.config_entries.async_forward_entry_setups(config_entry, ["select"])
