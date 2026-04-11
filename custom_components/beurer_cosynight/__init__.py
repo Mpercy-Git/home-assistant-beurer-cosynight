@@ -1,113 +1,128 @@
 """Beurer CosyNight integration."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from pathlib import Path
-
-import asyncio
-
-from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 CARD_NAME = "beurer-cosynight-card"
-CARD_REGISTERED_KEY = "_card_registered"
-CARD_VERSION = "1.1.8"
+CARD_URL = "/beurer-cosynight-card.js"
+CARD_URL_ALIAS = f"/beurer_cosynight/{CARD_NAME}.js"
+STATIC_REGISTERED_KEY = "_card_static_registered"
+STARTUP_LISTENER_KEY = "_startup_listener"
+LOVELACE_RETRY_MAX = 5
+LOVELACE_RETRY_DELAY = 2
 
 
-async def _register_frontend_resource(hass: HomeAssistant, card_url: str) -> None:
-    """Register the frontend resource using whichever API is available."""
-    async def _inject_when_ready(max_attempts: int = 20) -> bool:
-        """Inject module URL once frontend url managers are initialized."""
-        for _ in range(max_attempts):
-            if frontend.DATA_EXTRA_MODULE_URL in hass.data:
-                frontend.add_extra_js_url(hass, card_url)
-                return True
-            await asyncio.sleep(1)
-        return False
-
+def _versioned_card_url(frontend_file: Path) -> str:
+    """Build cache-busted card URL."""
     try:
-        if await _inject_when_ready(max_attempts=1):
-            _LOGGER.info("Registered frontend card resource immediately: %s", card_url)
-            return
-    except Exception as err:
-        _LOGGER.debug("Immediate frontend card resource injection failed: %s", err)
+        cache_bust = int(os.path.getmtime(frontend_file))
+    except OSError:
+        cache_bust = 0
+    return f"{CARD_URL}?v={cache_bust}"
 
-    # Frontend may not be initialized yet. Retry when HA is fully started.
-    async def _late_register_task() -> None:
-        if await _inject_when_ready():
-            _LOGGER.info("Late-registered frontend card resource: %s", card_url)
-            return
-        _LOGGER.warning("Late frontend card registration timed out: %s", card_url)
 
-    @callback
-    def _late_register(_event) -> None:
-        hass.async_create_task(_late_register_task())
-
-    if hass.is_running:
-        hass.async_create_task(_late_register_task())
+async def _async_register_lovelace_resource(hass: HomeAssistant, resource_url: str, retry_count: int = 0) -> None:
+    """Register card URL as Lovelace resource (storage mode)."""
+    lovelace_data = hass.data.get("lovelace")
+    if lovelace_data is None:
+        if retry_count < LOVELACE_RETRY_MAX:
+            await asyncio.sleep(LOVELACE_RETRY_DELAY)
+            return await _async_register_lovelace_resource(hass, resource_url, retry_count + 1)
+        _LOGGER.warning("Could not auto-register card: Lovelace not initialized")
         return
 
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _late_register)
+    resources = getattr(lovelace_data, "resources", None)
+    if resources is None and hasattr(lovelace_data, "get"):
+        resources = lovelace_data.get("resources")
+
+    if resources is None:
+        # YAML mode dashboards require manual resources in configuration.
+        _LOGGER.warning("Could not auto-register card resource: Lovelace resources unavailable")
+        return
+
+    if not hasattr(resources, "async_create_item") or not hasattr(resources, "async_items"):
+        _LOGGER.warning("Could not auto-register card resource: Lovelace resources API unavailable")
+        return
+
+    # Ensure storage collection is loaded before checking existing items.
+    if hasattr(resources, "async_get_info"):
+        await resources.async_get_info()
+
+    existing_resource = None
+    for item in resources.async_items():
+        url = item.get("url", "")
+        if isinstance(url, str) and url.startswith(CARD_URL):
+            existing_resource = item
+            break
+
+    if existing_resource:
+        if existing_resource.get("url") != resource_url:
+            await resources.async_update_item(
+                existing_resource["id"],
+                {"url": resource_url, "res_type": "module"},
+            )
+            _LOGGER.info("Updated Beurer card Lovelace resource: %s", resource_url)
+        return
+
+    await resources.async_create_item({"url": resource_url, "res_type": "module"})
+    _LOGGER.info("Added Beurer card Lovelace resource: %s", resource_url)
 
 
 async def _async_register_card(hass: HomeAssistant) -> None:
     """Register static card resources and frontend URL once."""
     domain_data = hass.data.setdefault(DOMAIN, {})
-    if domain_data.get(CARD_REGISTERED_KEY):
-        return
 
     frontend_file = Path(__file__).parent / "frontend" / f"{CARD_NAME}.js"
-    card_url = f"/beurer_cosynight/{CARD_NAME}.js"
-    local_card_url = f"/local/beurer_cosynight/{CARD_NAME}.js"
 
     if not frontend_file.exists():
         _LOGGER.error("Card frontend file missing: %s", frontend_file)
         return
 
-    await hass.http.async_register_static_paths(
-        [
-            StaticPathConfig(
-                card_url,
-                str(frontend_file),
-                cache_headers=False,
-            ),
-            StaticPathConfig(
-                local_card_url,
-                str(frontend_file),
-                cache_headers=False,
-            ),
-        ]
-    )
+    if not domain_data.get(STATIC_REGISTERED_KEY):
+        try:
+            await hass.http.async_register_static_paths(
+                [
+                    StaticPathConfig(CARD_URL, str(frontend_file), cache_headers=False),
+                    StaticPathConfig(CARD_URL_ALIAS, str(frontend_file), cache_headers=False),
+                ]
+            )
+        except RuntimeError:
+            # Already registered on reload.
+            pass
+        domain_data[STATIC_REGISTERED_KEY] = True
 
-    try:
-        cache_bust = int(os.path.getmtime(frontend_file))
-    except OSError:
-        cache_bust = 0
-
-    # Alarmo-style cache busting prevents stale resource caches from hiding the card.
-    resource_url = f"{local_card_url}?v={CARD_VERSION}&m={cache_bust}"
-    await _register_frontend_resource(hass, resource_url)
-    _LOGGER.info(
-        "Registered Beurer CosyNight card resources: %s and %s (resource=%s)",
-        card_url,
-        local_card_url,
-        resource_url,
-    )
-    domain_data[CARD_REGISTERED_KEY] = True
+    resource_url = _versioned_card_url(frontend_file)
+    await _async_register_lovelace_resource(hass, resource_url)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up Beurer CosyNight integration."""
     hass.data.setdefault(DOMAIN, {})
-    await _async_register_card(hass)
+
+    async def _register_when_started(_event=None) -> None:
+        await _async_register_card(hass)
+
+    if hass.is_running:
+        await _async_register_card(hass)
+    else:
+        domain_data = hass.data[DOMAIN]
+        if domain_data.get(STARTUP_LISTENER_KEY) is None:
+            domain_data[STARTUP_LISTENER_KEY] = hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED,
+                _register_when_started,
+            )
+
     return True
 
 
@@ -133,9 +148,15 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
     domain_data.pop(config_entry.entry_id, None)
 
     # If no configured entries remain, force re-registration next setup.
-    has_entries = any(k != CARD_REGISTERED_KEY for k in domain_data)
+    transient_keys = {STATIC_REGISTERED_KEY, STARTUP_LISTENER_KEY}
+    has_entries = any(k not in transient_keys for k in domain_data)
     if not has_entries:
-        domain_data.pop(CARD_REGISTERED_KEY, None)
+        domain_data.pop(STATIC_REGISTERED_KEY, None)
+
+    if STARTUP_LISTENER_KEY in domain_data:
+        unsub = domain_data.pop(STARTUP_LISTENER_KEY)
+        if callable(unsub):
+            unsub()
 
     if not domain_data:
         hass.data.pop(DOMAIN, None)
