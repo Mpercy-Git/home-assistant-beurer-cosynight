@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from homeassistant.components.http import StaticPathConfig
@@ -14,6 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CARD_NAME = "beurer-cosynight-card"
 CARD_REGISTERED_KEY = "_card_registered"
+CARD_VERSION = "1.1.8"
 
 
 async def _register_frontend_resource(hass: HomeAssistant, card_url: str) -> None:
@@ -64,11 +66,19 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         ]
     )
 
-    await _register_frontend_resource(hass, local_card_url)
+    try:
+        cache_bust = int(os.path.getmtime(frontend_file))
+    except OSError:
+        cache_bust = 0
+
+    # Alarmo-style cache busting prevents stale resource caches from hiding the card.
+    resource_url = f"{local_card_url}?v={CARD_VERSION}&m={cache_bust}"
+    await _register_frontend_resource(hass, resource_url)
     _LOGGER.info(
-        "Registered Beurer CosyNight card resources: %s and %s",
+        "Registered Beurer CosyNight card resources: %s and %s (resource=%s)",
         card_url,
         local_card_url,
+        resource_url,
     )
     domain_data[CARD_REGISTERED_KEY] = True
 
