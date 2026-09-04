@@ -1,5 +1,5 @@
 {
   "name": "Beurer CosyNight",
-  "domains": ["select"],
+  "domains": ["button", "number", "select", "sensor"],
   "render_readme": true
 }

@@ -19,17 +19,14 @@ zones:
   - name: Right Feet
     entity: select.right_side_feet_zone
     colour_style: feet
-timer_select_entity: select.left_side_timer
-timer_sensor_entity: sensor.left_side_timer
-stop_button_entity: button.left_side_stop
 timers:
   - name: Left Side
-    timer_select_entity: select.left_side_timer
-    timer_sensor_entity: sensor.left_side_timer
+    timer_entity: number.left_side_timer
+    timer_sensor_entity: sensor.left_side_remaining_time
     stop_button_entity: button.left_side_stop
   - name: Right Side
-    timer_select_entity: select.right_side_timer
-    timer_sensor_entity: sensor.right_side_timer
+    timer_entity: number.right_side_timer
+    timer_sensor_entity: sensor.right_side_remaining_time
     stop_button_entity: button.right_side_stop
 
 # Notes:
@@ -39,4 +36,6 @@ timers:
 #   colour_style (body zones above feet zones).
 # - Timers are built into the duvet fold at the foot of the bed, under the
 #   side they control.
+# - Entity IDs are named after your devices; check them under
+#   Settings > Devices & Services > Beurer CosyNight.
 # - If you only have one side/device, remove the right-side zones.
