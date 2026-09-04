@@ -5,6 +5,7 @@
 
 type: custom:beurer-cosynight-card
 title: Beurer CosyNight
+layout: bed # "bed" (default) or "plain" for unstyled tiles
 zones:
   - name: Left Body
     entity: select.left_side_body_zone
@@ -33,5 +34,9 @@ timers:
 
 # Notes:
 # - Use +/- buttons or dropdown on each tile to change level.
-# - Tile color intensity reflects current level state.
+# - Tile colour intensity and the heat meter reflect the current level.
+# - Zones are laid out on the bed by name/side (left vs right) and by
+#   colour_style (body zones above feet zones).
+# - Timers are built into the duvet fold at the foot of the bed, under the
+#   side they control.
 # - If you only have one side/device, remove the right-side zones.

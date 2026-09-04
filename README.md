@@ -28,8 +28,9 @@ A visual card is bundled with the integration as `custom:beurer-cosynight-card`.
 
 It provides:
 
-- 2x2 heated-zone layout similar to the app/screenshot style
-- Current level display for each zone (0-9)
+- Bed-shaped layout: headboard, a pillow per side, quilted mattress zones, and each side's timer built into the turned-down duvet at the foot
+- Zones are placed on the bed by side and area — left/right columns, body zones above feet zones
+- Current level display for each zone (0-9), with a heat meter and a warm glow that tracks the level
 - Multiple ways to change levels:
 	- +/- buttons for quick level stepping
 	- Per-zone dropdown selector for direct level selection
@@ -49,6 +50,7 @@ It provides:
    - Type: `custom:beurer-cosynight-card`
    - Click on the card to open the **visual editor** and configure:
      - Card title
+     - Layout (bed or plain tiles)
      - Zone names & entity IDs
      - Timer selector and stop button (optional)
 
@@ -57,6 +59,7 @@ It provides:
 ```yaml
 type: custom:beurer-cosynight-card
 title: Beurer CosyNight
+layout: bed # "bed" (default) or "plain" for unstyled tiles
 zones:
   - name: Left Body
     entity: select.left_side_body_zone
@@ -84,7 +87,12 @@ timers:
     stop_button_entity: button.right_side_stop
 ```
 
-Timer rows are visually grouped under each zone column. The first timer is shown under the left column, the second under the right column, and additional timers alternate.
+### Layout notes
+
+- Each zone is placed on the bed from its config: the **side** comes from `left`/`right` in the zone name (or an explicit `side: left` / `side: right`), and the **row** comes from `colour_style` — `body` zones sit below the pillows, `feet` zones at the foot of the bed.
+- Zones with no side in their name are spread across the columns in config order, so existing configurations keep working.
+- Timers are grouped the same way and sit in the duvet fold at the foot of the bed, in the column of the side they control — duration, time remaining and stop, all on the bed itself.
+- Set `layout: plain` if you would rather have simple tiles without the bed frame, pillows and duvet.
 
 Find your entities under **Settings → Devices & Services → Beurer CosyNight**.
 
