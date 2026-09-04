@@ -3,7 +3,9 @@
 This fork tracks upstream (damonkohler/home-assistant-beurer-cosynight) and adds
 a bundled Lovelace card.
 
-## [2.0.0-card.1] - 2026-09-04
+## [2.1.0] - 2026-09-04
+
+Upstream 2.0.0, plus this fork's bundled dashboard card.
 
 ### Added
 
