@@ -28,7 +28,7 @@ A visual card is bundled with the integration as `custom:beurer-cosynight-card`.
 
 It provides:
 
-- Bed-shaped layout: headboard, a pillow per side, quilted mattress zones and a turned-down duvet at the foot
+- Bed-shaped layout: headboard, a pillow per side, quilted mattress zones, and each side's timer built into the turned-down duvet at the foot
 - Zones are placed on the bed by side and area — left/right columns, body zones above feet zones
 - Current level display for each zone (0-9), with a heat meter and a warm glow that tracks the level
 - Multiple ways to change levels:
@@ -91,7 +91,7 @@ timers:
 
 - Each zone is placed on the bed from its config: the **side** comes from `left`/`right` in the zone name (or an explicit `side: left` / `side: right`), and the **row** comes from `colour_style` — `body` zones sit below the pillows, `feet` zones at the foot of the bed.
 - Zones with no side in their name are spread across the columns in config order, so existing configurations keep working.
-- Timers are grouped the same way and shown below the bed, under the side they belong to.
+- Timers are grouped the same way and sit in the duvet fold at the foot of the bed, in the column of the side they control — duration, time remaining and stop, all on the bed itself.
 - Set `layout: plain` if you would rather have simple tiles without the bed frame, pillows and duvet.
 
 Find your entities under **Settings → Devices & Services → Beurer CosyNight**.

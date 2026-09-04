@@ -267,7 +267,7 @@ class BeurerCosyNightCard extends HTMLElement {
 
     const renderTimer = (timer) => {
       if (!timer) {
-        return `<div class="timer-card timer-card--empty" aria-hidden="true"></div>`;
+        return `<div class="duvet-panel duvet-panel--blank" aria-hidden="true"><span class="stitch"></span></div>`;
       }
 
       const timerSelectEntity = timer.timer_select_entity;
@@ -284,18 +284,32 @@ class BeurerCosyNightCard extends HTMLElement {
         })
         .join("");
 
-      const timerRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
-        ? this._hass.states[timerSensorEntity].state
+      const rawRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
+        ? String(this._hass.states[timerSensorEntity].state)
         : "";
+      const timerRemaining = ["", "unknown", "unavailable", "none"].indexOf(rawRemaining.toLowerCase()) === -1
+        ? rawRemaining
+        : "–";
 
       const name = this._esc(timer.name || "Timer");
 
+      const controlsMarkup = [
+        timerSelectEntity
+          ? `<select class="timer-pick" data-entity="${this._esc(timerSelectEntity)}" aria-label="${name} duration">${timerOptionsMarkup}</select>`
+          : "",
+        stopButtonEntity
+          ? `<button class="stop" data-entity="${this._esc(stopButtonEntity)}" aria-label="Stop ${name}">Stop</button>`
+          : "",
+      ].join("");
+
       return `
-        <div class="timer-card">
-          <div class="timer-title">${name}</div>
-          ${timerSelectEntity ? `<label class="timer-field">Duration <select class="timer-pick" data-entity="${this._esc(timerSelectEntity)}" aria-label="${name} duration">${timerOptionsMarkup}</select></label>` : ""}
-          ${timerSensorEntity ? `<div class="timer-readout"><span>Remaining</span><strong>${this._esc(timerRemaining)}</strong></div>` : ""}
-          ${stopButtonEntity ? `<button class="stop" data-entity="${this._esc(stopButtonEntity)}">Stop</button>` : ""}
+        <div class="duvet-panel">
+          <span class="stitch" aria-hidden="true"></span>
+          <div class="timer-head">
+            <span class="timer-name">${name}</span>
+            ${timerSensorEntity ? `<span class="timer-remaining" title="Remaining">${this._esc(timerRemaining)}</span>` : ""}
+          </div>
+          ${controlsMarkup ? `<div class="timer-controls">${controlsMarkup}</div>` : ""}
         </div>
       `;
     };
@@ -316,11 +330,10 @@ class BeurerCosyNightCard extends HTMLElement {
             <div class="mattress">
               <div class="pillows">${pillowsMarkup}</div>
               <div class="zone-grid">${zonesMarkup}</div>
-              <div class="duvet" aria-hidden="true"><span class="stitch"></span></div>
+              <div class="duvet">${timersMarkup || `<div class="duvet-panel duvet-panel--blank" aria-hidden="true"><span class="stitch"></span></div>`}</div>
             </div>
             <div class="footboard" aria-hidden="true"></div>
           </div>
-          ${timersMarkup ? `<div class="timers">${timersMarkup}</div>` : ""}
         </div>
       </ha-card>
       <style>
@@ -376,7 +389,7 @@ class BeurerCosyNightCard extends HTMLElement {
 
         .pillows,
         .zone-grid,
-        .timers {
+        .duvet {
           display: grid;
           grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
           gap: 10px;
@@ -527,21 +540,73 @@ class BeurerCosyNightCard extends HTMLElement {
           cursor: pointer;
         }
 
-        .duvet {
+        .duvet-panel {
           position: relative;
-          height: 22px;
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          padding: 14px 10px 10px;
           border-radius: 11px;
           background: linear-gradient(180deg, #ffffff 0%, #e4eaf5 100%);
           box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.95), 0 -4px 10px rgba(34, 48, 63, 0.08);
         }
 
+        .duvet-panel--blank {
+          min-height: 22px;
+          padding: 0;
+        }
+
+        .duvet > .duvet-panel--blank:only-child {
+          grid-column: 1 / -1;
+        }
+
         .stitch {
           position: absolute;
-          left: 14px;
-          right: 14px;
-          top: 10px;
+          left: 12px;
+          right: 12px;
+          top: 8px;
           height: 1px;
           background: repeating-linear-gradient(90deg, rgba(34, 48, 63, 0.25) 0 5px, rgba(0, 0, 0, 0) 5px 10px);
+        }
+
+        .duvet-panel--blank .stitch {
+          top: 10px;
+        }
+
+        .timer-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 2px 6px;
+        }
+
+        .timer-name {
+          /* Never shrink: a name that will not fit alongside the remaining
+             time pushes it onto the next line instead of being ellipsed. */
+          flex: 0 0 auto;
+          max-width: 100%;
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          opacity: 0.65;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .timer-remaining {
+          font-size: 0.92rem;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+        }
+
+        .timer-controls {
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
         .footboard {
@@ -552,72 +617,28 @@ class BeurerCosyNightCard extends HTMLElement {
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
-        .timers {
-          margin-top: 12px;
-        }
-
-        .timer-card {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 8px 10px;
-          padding: 10px;
-          border-radius: 12px;
-          border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-          border-left: 4px solid rgba(255, 138, 46, 0.85);
-          background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-          color: var(--primary-text-color);
-        }
-
-        .timer-card--empty {
-          border: none;
-          background: none;
-          padding: 0;
-        }
-
-        .timer-title {
-          flex: 1 0 100%;
-          font-weight: 700;
-        }
-
-        .timer-field {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.85rem;
-          opacity: 0.85;
-        }
-
         .timer-pick {
+          flex: 1 1 auto;
+          min-width: 0;
           height: 30px;
           border-radius: 15px;
-          border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.18));
-          background: var(--card-background-color, #ffffff);
-          color: var(--primary-text-color);
+          border: 1px solid rgba(34, 48, 63, 0.18);
+          background: rgba(255, 255, 255, 0.92);
+          color: var(--ink);
           padding: 0 8px;
-          font-size: 0.88rem;
+          font-size: 0.86rem;
           cursor: pointer;
         }
 
-        .timer-readout {
-          display: inline-flex;
-          align-items: baseline;
-          gap: 6px;
-          font-size: 0.85rem;
-        }
-
-        .timer-readout span {
-          opacity: 0.7;
-        }
-
         .stop {
-          margin-left: auto;
-          height: 32px;
-          padding: 0 14px;
-          border-radius: 16px;
+          flex: 0 0 auto;
+          height: 30px;
+          padding: 0 12px;
+          border-radius: 15px;
           border: none;
           background: var(--error-color, #c0392b);
           color: #ffffff;
+          font-size: 0.82rem;
           font-weight: 600;
           cursor: pointer;
         }
@@ -635,9 +656,24 @@ class BeurerCosyNightCard extends HTMLElement {
         .bed--plain .headboard,
         .bed--plain .footboard,
         .bed--plain .pillows,
-        .bed--plain .duvet,
+        .bed--plain .stitch,
+        .bed--plain .duvet-panel--blank,
         .bed--plain .quilt {
           display: none;
+        }
+
+        .bed--plain .duvet-panel {
+          padding: 10px;
+          border-radius: 12px;
+          border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+          border-left: 4px solid rgba(255, 138, 46, 0.85);
+          background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+          box-shadow: none;
+        }
+
+        .bed--plain .timer-pick {
+          background: var(--card-background-color, #ffffff);
+          border-color: var(--divider-color, rgba(0, 0, 0, 0.18));
         }
 
         .bed--plain .mattress {
@@ -694,8 +730,30 @@ class BeurerCosyNightCard extends HTMLElement {
             font-size: 0.82rem;
           }
 
-          .timers {
-            grid-template-columns: 1fr;
+          .timer-name {
+            font-size: 0.72rem;
+          }
+
+          .timer-remaining {
+            font-size: 0.85rem;
+          }
+
+          .timer-pick {
+            font-size: 0.8rem;
+            padding: 0 6px;
+          }
+
+          .stop {
+            padding: 0 10px;
+            font-size: 0.78rem;
+          }
+
+          .timer-head {
+            gap: 4px;
+          }
+
+          .timer-name {
+            letter-spacing: 0;
           }
 
           .pillow {

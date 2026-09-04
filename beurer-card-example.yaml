@@ -37,5 +37,6 @@ timers:
 # - Tile colour intensity and the heat meter reflect the current level.
 # - Zones are laid out on the bed by name/side (left vs right) and by
 #   colour_style (body zones above feet zones).
-# - Timers appear below the bed, grouped under the side they belong to.
+# - Timers are built into the duvet fold at the foot of the bed, under the
+#   side they control.
 # - If you only have one side/device, remove the right-side zones.
