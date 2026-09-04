@@ -2,10 +2,10 @@
   "domain": "beurer_cosynight",
   "name": "Beurer CosyNight",
   "codeowners": [],
+  "config_flow": true,
   "dependencies": ["frontend", "http", "lovelace"],
-  "documentation": "https://github.com/damonkohler/home-assistant-beurer-cosynight",
+  "documentation": "https://github.com/Mpercy-Git/home-assistant-beurer-cosynight",
   "iot_class": "cloud_polling",
-  "requirements": ["voluptuous"],
-  "version": "1.3.1",
-  "config_flow": true
+  "requirements": [],
+  "version": "2.0.0"
 }

@@ -1,4 +1,5 @@
 const BEURER_ROW_ORDER = ["body", "feet"];
+const BEURER_TIMER_PRESET_MINUTES = [15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600];
 
 class BeurerCosyNightCard extends HTMLElement {
   setConfig(config) {
@@ -102,6 +103,78 @@ class BeurerCosyNightCard extends HTMLElement {
     return "";
   }
 
+  _entityDomain(entityId) {
+    return String(entityId || "").split(".")[0];
+  }
+
+  /**
+   * The timer duration is a number entity (minutes). Offer sensible presets
+   * within its min/max rather than a free-text box, and always include the
+   * value the entity currently holds.
+   */
+  _timerDurationOptions(stateObj) {
+    const attrs = (stateObj && stateObj.attributes) || {};
+    const min = Number.isFinite(Number(attrs.min)) ? Number(attrs.min) : 1;
+    const max = Number.isFinite(Number(attrs.max)) ? Number(attrs.max) : 720;
+    const current = Number.parseFloat(stateObj ? stateObj.state : "");
+
+    const options = BEURER_TIMER_PRESET_MINUTES.filter((value) => value >= min && value <= max);
+    if (Number.isFinite(current) && options.indexOf(current) === -1) {
+      options.push(current);
+    }
+    return options.sort((a, b) => a - b);
+  }
+
+  _formatMinutes(minutes) {
+    const value = Number(minutes);
+    if (!Number.isFinite(value)) {
+      return String(minutes);
+    }
+    const hours = Math.floor(value / 60);
+    const mins = Math.round(value % 60);
+    if (hours && mins) {
+      return `${hours}h ${mins}m`;
+    }
+    if (hours) {
+      return `${hours}h`;
+    }
+    return `${mins}m`;
+  }
+
+  /** Format the remaining-time sensor, which reports whole seconds. */
+  _formatRemaining(stateObj) {
+    if (!stateObj) {
+      return "–";
+    }
+
+    const raw = String(stateObj.state);
+    if (["", "unknown", "unavailable", "none"].indexOf(raw.toLowerCase()) !== -1) {
+      return "–";
+    }
+
+    const total = Number.parseFloat(raw);
+    if (!Number.isFinite(total)) {
+      // Not a duration sensor - show whatever it reports.
+      return raw;
+    }
+    if (total <= 0) {
+      return "Off";
+    }
+
+    const seconds = Math.round(total);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    }
+    return `${secs}s`;
+  }
+
   _levelInfo(stateObj) {
     const options = ((stateObj && stateObj.attributes && stateObj.attributes.options) || []).map((o) => String(o));
     const state = stateObj ? String(stateObj.state) : "unknown";
@@ -190,12 +263,12 @@ class BeurerCosyNightCard extends HTMLElement {
 
     const legacy = {
       name: this._config.timer_name || "Timer",
-      timer_select_entity: this._config.timer_select_entity,
+      timer_entity: this._config.timer_entity || this._config.timer_select_entity,
       timer_sensor_entity: this._config.timer_sensor_entity,
       stop_button_entity: this._config.stop_button_entity,
     };
 
-    if (legacy.timer_select_entity || legacy.timer_sensor_entity || legacy.stop_button_entity) {
+    if (legacy.timer_entity || legacy.timer_sensor_entity || legacy.stop_button_entity) {
       return [legacy];
     }
 
@@ -270,32 +343,44 @@ class BeurerCosyNightCard extends HTMLElement {
         return `<div class="duvet-panel duvet-panel--blank" aria-hidden="true"><span class="stitch"></span></div>`;
       }
 
-      const timerSelectEntity = timer.timer_select_entity;
+      // timer_entity is a number entity (minutes); timer_select_entity is the
+      // pre-2.0 select and is still accepted.
+      const durationEntity = timer.timer_entity || timer.timer_select_entity;
       const timerSensorEntity = timer.timer_sensor_entity;
       const stopButtonEntity = timer.stop_button_entity;
 
-      const timerSelectState = timerSelectEntity ? this._hass.states[timerSelectEntity] : undefined;
-      const timerCurrent = timerSelectState ? String(timerSelectState.state) : "";
-      const timerOptions = (timerSelectState && timerSelectState.attributes && timerSelectState.attributes.options) || [];
-      const timerOptionsMarkup = timerOptions
-        .map((opt) => {
-          const selected = String(opt) === timerCurrent ? " selected" : "";
-          return `<option value="${this._esc(opt)}"${selected}>${this._esc(opt)}</option>`;
-        })
-        .join("");
+      const durationState = durationEntity ? this._hass.states[durationEntity] : undefined;
+      const durationDomain = this._entityDomain(durationEntity);
+      let durationOptionsMarkup = "";
 
-      const rawRemaining = timerSensorEntity && this._hass.states[timerSensorEntity]
-        ? String(this._hass.states[timerSensorEntity].state)
+      if (durationDomain === "select" || durationDomain === "input_select") {
+        const current = durationState ? String(durationState.state) : "";
+        const options = (durationState && durationState.attributes && durationState.attributes.options) || [];
+        durationOptionsMarkup = options
+          .map((opt) => {
+            const selected = String(opt) === current ? " selected" : "";
+            return `<option value="${this._esc(opt)}"${selected}>${this._esc(opt)}</option>`;
+          })
+          .join("");
+      } else if (durationEntity) {
+        const current = Number.parseFloat(durationState ? durationState.state : "");
+        durationOptionsMarkup = this._timerDurationOptions(durationState)
+          .map((minutes) => {
+            const selected = minutes === current ? " selected" : "";
+            return `<option value="${minutes}"${selected}>${this._esc(this._formatMinutes(minutes))}</option>`;
+          })
+          .join("");
+      }
+
+      const timerRemaining = timerSensorEntity
+        ? this._formatRemaining(this._hass.states[timerSensorEntity])
         : "";
-      const timerRemaining = ["", "unknown", "unavailable", "none"].indexOf(rawRemaining.toLowerCase()) === -1
-        ? rawRemaining
-        : "–";
 
       const name = this._esc(timer.name || "Timer");
 
       const controlsMarkup = [
-        timerSelectEntity
-          ? `<select class="timer-pick" data-entity="${this._esc(timerSelectEntity)}" aria-label="${name} duration">${timerOptionsMarkup}</select>`
+        durationEntity
+          ? `<select class="timer-pick" data-entity="${this._esc(durationEntity)}" aria-label="${name} duration">${durationOptionsMarkup}</select>`
           : "",
         stopButtonEntity
           ? `<button class="stop" data-entity="${this._esc(stopButtonEntity)}" aria-label="Stop ${name}">Stop</button>`
@@ -782,7 +867,7 @@ class BeurerCosyNightCard extends HTMLElement {
     this._root.querySelectorAll("select.timer-pick").forEach((timerPick) => {
       timerPick.addEventListener("change", (ev) => {
         const entity = ev.currentTarget.getAttribute("data-entity");
-        this._selectOption(entity, ev.currentTarget.value);
+        this._setDuration(entity, ev.currentTarget.value);
       });
     });
 
@@ -810,8 +895,21 @@ class BeurerCosyNightCard extends HTMLElement {
     this._selectOption(entityId, options[nextIndex]);
   }
 
+  _setDuration(entityId, value) {
+    const domain = this._entityDomain(entityId);
+    if (domain === "number" || domain === "input_number") {
+      this._hass.callService(domain, "set_value", {
+        entity_id: entityId,
+        value: Number(value),
+      });
+      return;
+    }
+    this._selectOption(entityId, value);
+  }
+
   _selectOption(entityId, option) {
-    this._hass.callService("select", "select_option", {
+    const domain = this._entityDomain(entityId);
+    this._hass.callService(domain === "input_select" ? "input_select" : "select", "select_option", {
       entity_id: entityId,
       option: String(option),
     });
@@ -832,8 +930,8 @@ class BeurerCosyNightCard extends HTMLElement {
         { name: "Right Feet", entity: "", colour_style: "feet" },
       ],
       timers: [
-        { name: "Left Side", timer_select_entity: "", timer_sensor_entity: "", stop_button_entity: "" },
-        { name: "Right Side", timer_select_entity: "", timer_sensor_entity: "", stop_button_entity: "" },
+        { name: "Left Side", timer_entity: "", timer_sensor_entity: "", stop_button_entity: "" },
+        { name: "Right Side", timer_entity: "", timer_sensor_entity: "", stop_button_entity: "" },
       ],
     };
   }
@@ -870,7 +968,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
   }
 
   get _timerSelectEntity() {
-    return this._config.timer_select_entity || "";
+    return this._config.timer_entity || this._config.timer_select_entity || "";
   }
 
   get _timerSensorEntity() {
@@ -889,7 +987,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
       return [
         {
           name: this._config.timer_name || "Timer",
-          timer_select_entity: this._config.timer_select_entity || "",
+          timer_entity: this._config.timer_entity || this._config.timer_select_entity || "",
           timer_sensor_entity: this._config.timer_sensor_entity || "",
           stop_button_entity: this._config.stop_button_entity || "",
         },
@@ -1014,7 +1112,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
             <label>Name: <input type="text" class="timer-name" data-idx="${idx}" value="${timer.name || ""}" style="width: 150px; padding: 4px; margin: 0 8px;"></label>
           </div>
           <div>
-            <label>Timer Select Entity: <input type="text" class="timer-select" data-idx="${idx}" value="${timer.timer_select_entity || ""}" style="width: 240px; padding: 4px; margin: 0 8px;" placeholder="select.timer"></label>
+            <label>Timer Duration Entity: <input type="text" class="timer-select" data-idx="${idx}" value="${timer.timer_entity || timer.timer_select_entity || ""}" style="width: 240px; padding: 4px; margin: 0 8px;" placeholder="number.left_side_timer"></label>
           </div>
           <div>
             <label>Timer Sensor Entity: <input type="text" class="timer-sensor" data-idx="${idx}" value="${timer.timer_sensor_entity || ""}" style="width: 240px; padding: 4px; margin: 0 8px;" placeholder="sensor.timer"></label>
@@ -1043,7 +1141,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     this._config.timers = this._timers.slice();
     this._config.timers.push({
       name: "Timer",
-      timer_select_entity: "",
+      timer_entity: "",
       timer_sensor_entity: "",
       stop_button_entity: "",
     });
@@ -1075,10 +1173,10 @@ class BeurerCosyNightCardEditor extends HTMLElement {
 
     const timers = this._timers.map((timer, idx) => ({
       name: this.querySelector(`.timer-name[data-idx="${idx}"]`)?.value || timer.name || "Timer",
-      timer_select_entity: this.querySelector(`.timer-select[data-idx="${idx}"]`)?.value || timer.timer_select_entity,
+      timer_entity: this.querySelector(`.timer-select[data-idx="${idx}"]`)?.value || timer.timer_entity || timer.timer_select_entity,
       timer_sensor_entity: this.querySelector(`.timer-sensor[data-idx="${idx}"]`)?.value || timer.timer_sensor_entity,
       stop_button_entity: this.querySelector(`.timer-stop[data-idx="${idx}"]`)?.value || timer.stop_button_entity,
-    })).filter((timer) => timer.timer_select_entity || timer.timer_sensor_entity || timer.stop_button_entity);
+    })).filter((timer) => timer.timer_entity || timer.timer_sensor_entity || timer.stop_button_entity);
 
     const nextConfig = {
       ...this._config,
@@ -1091,12 +1189,12 @@ class BeurerCosyNightCardEditor extends HTMLElement {
     // Backward-compatible first timer mirrors legacy fields.
     if (timers[0]) {
       nextConfig.timer_name = timers[0].name;
-      nextConfig.timer_select_entity = timers[0].timer_select_entity;
+      nextConfig.timer_entity = timers[0].timer_entity;
       nextConfig.timer_sensor_entity = timers[0].timer_sensor_entity;
       nextConfig.stop_button_entity = timers[0].stop_button_entity;
     } else {
       nextConfig.timer_name = undefined;
-      nextConfig.timer_select_entity = undefined;
+      nextConfig.timer_entity = undefined;
       nextConfig.timer_sensor_entity = undefined;
       nextConfig.stop_button_entity = undefined;
     }
