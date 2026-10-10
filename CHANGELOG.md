@@ -3,6 +3,14 @@
 This fork tracks upstream (damonkohler/home-assistant-beurer-cosynight) and adds
 a bundled Lovelace card.
 
+## [2.1.1] - 2026-10-10
+
+### Fixed
+
+- Card editor: "Add Timer Row" now keeps the new row, so a second timer (for the
+  other side of the bed) can be added. Empty timer rows are skipped when the
+  card renders rather than being dropped from the config.
+
 ## [2.1.0] - 2026-09-04
 
 Upstream 2.0.0, plus this fork's bundled dashboard card.
