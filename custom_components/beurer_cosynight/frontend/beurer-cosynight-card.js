@@ -257,8 +257,15 @@ class BeurerCosyNightCard extends HTMLElement {
   }
 
   _getTimerControls() {
-    if (Array.isArray(this._config.timers) && this._config.timers.length) {
-      return this._config.timers;
+    // The editor keeps freshly added (still empty) timer rows in the config so
+    // they survive re-renders; skip them here until an entity is chosen.
+    const configured = Array.isArray(this._config.timers)
+      ? this._config.timers.filter(
+          (timer) => timer && (timer.timer_entity || timer.timer_select_entity || timer.timer_sensor_entity || timer.stop_button_entity)
+        )
+      : [];
+    if (configured.length) {
+      return configured;
     }
 
     const legacy = {
@@ -1176,7 +1183,7 @@ class BeurerCosyNightCardEditor extends HTMLElement {
       timer_entity: this.querySelector(`.timer-select[data-idx="${idx}"]`)?.value || timer.timer_entity || timer.timer_select_entity,
       timer_sensor_entity: this.querySelector(`.timer-sensor[data-idx="${idx}"]`)?.value || timer.timer_sensor_entity,
       stop_button_entity: this.querySelector(`.timer-stop[data-idx="${idx}"]`)?.value || timer.stop_button_entity,
-    })).filter((timer) => timer.timer_entity || timer.timer_sensor_entity || timer.stop_button_entity);
+    }));
 
     const nextConfig = {
       ...this._config,
